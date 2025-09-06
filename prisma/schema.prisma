@@ -32,10 +32,12 @@ enum InteractionType {
 
 // MODELS (Tables in your database)
 
+// --- FIX 1: MERGED AND CORRECTED USER MODEL ---
 model User {
   id               String            @id @default(cuid())
   email            String            @unique
   name             String?
+  age              Int               // The required age field is now here
   hashedPassword   String
   subscriptionTier SubscriptionTier  @default(FREE)
   hintCredits      Int               @default(5)
@@ -48,11 +50,12 @@ model User {
 }
 
 model ContentNode {
-  id          String   @id @default(cuid())
-  title       String
-  nodeType    NodeType
-  contentJson Json // Flexible field for video URL, article text, quiz questions
-  createdAt   DateTime @default(now())
+  id                 String    @id @default(cuid())
+  title              String
+  nodeType           NodeType
+  googleDriveFileId  String?
+  contentJson        Json?
+  createdAt          DateTime  @default(now())
 
   // For the Knowledge Graph (self-referencing many-to-many)
   prerequisites ContentNode[] @relation("KnowledgeGraph")
@@ -61,25 +64,27 @@ model ContentNode {
   interactions UserInteraction[]
 }
 
+// --- FIX 2: RE-ADDED THE MISSING UserInteraction MODEL ---
 model UserInteraction {
   id            String          @id @default(cuid())
   userId        String
   contentNodeId String
   interactionType InteractionType
-  data          Json // Store quiz answers, time taken, confidence rating etc.
+  data          Json
   createdAt     DateTime        @default(now())
 
   user        User        @relation(fields: [userId], references: [id])
   contentNode ContentNode @relation(fields: [contentNodeId], references: [id])
 }
 
+
 model LearnerProfile {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-  engagementScore   Float    @default(0.5)
-  competenceMap     Json // e.g., {"concept_101": 0.92, "concept_102": 0.45}
-  misconceptionClusters Json   @default("[]")
-  updatedAt         DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  engagementScore       Float    @default(0.5)
+  competenceMap         Json
+  misconceptionClusters Json     @default("[]")
+  updatedAt             DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id])
 }
@@ -88,7 +93,7 @@ model LearnerReport {
   id          String   @id @default(cuid())
   userId      String
   generatedAt DateTime @default(now())
-  reportData  Json // Snapshot of profile, benchmarks, recommendations
+  reportData  Json
 
   user User @relation(fields: [userId], references: [id])
 }
