@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getSession } from "next-auth/react";
 import prisma from "../../../lib/prisma";
-import getDriveClient from "../../../lib/googleDrive"; // Import our new helper
+import getDriveClient from "../../../lib/googleDrive";
 import { NodeType } from "@prisma/client";
 
 export default async function handler(

@@ -2,6 +2,9 @@ import axios from "axios";
 import { wrapper } from "axios-cookiejar-support";
 import { CookieJar } from "tough-cookie";
 import { PrismaClient } from "@prisma/client";
+import dotenv from "dotenv";
+
+dotenv.config({ path: ".env.local" });
 
 // --- Configuration ---
 const NEXTJS_BASE_URL = "http://localhost:3000/api";
@@ -44,14 +47,18 @@ async function runApiTests() {
     const csrfToken = csrfRes.data.csrfToken;
     logResult("Get CSRF Token", !!csrfToken);
 
+    // --- START OF FIX ---
+    // Set the CSRF token as a default header for all subsequent requests
+    client.defaults.headers.post["X-CSRF-Token"] = csrfToken;
+    // --- END OF FIX ---
+
     // 3. User Login
     const loginRes = await client.post(
-      // --- THIS IS THE CRITICAL FIX ---
       `${NEXTJS_BASE_URL}/auth/callback/credentials`,
       new URLSearchParams({
         email: TEST_USER.email,
         password: TEST_USER.password,
-        csrfToken: csrfToken,
+        csrfToken: csrfToken, // The token is still needed in the body for login
         json: "true",
       }),
       {
@@ -64,9 +71,6 @@ async function runApiTests() {
 
     // 4. Verify Session
     const sessionRes = await client.get(`${NEXTJS_BASE_URL}/auth/session`);
-    console.log("--- Session API Response ---");
-    console.log(sessionRes.data);
-    console.log("--------------------------");
     logResult(
       "Verify Session",
       sessionRes.status === 200 &&

@@ -1,14 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getSession } from "next-auth/react";
+import { getToken } from "next-auth/jwt";
 import { z } from "zod";
 import Redis from "ioredis";
 import { InteractionType } from "@prisma/client";
-
-const interactionSchema = z.object({
-  contentNodeId: z.string().cuid(),
-  interactionType: z.nativeEnum(InteractionType),
-  data: z.record(z.unknown()),
-});
 
 const redis = new Redis(process.env.REDIS_URL!);
 const INTERACTION_QUEUE_KEY = "interaction-queue";
@@ -21,13 +15,19 @@ export default async function handler(
     return res.status(405).json({ message: "Method Not Allowed" });
   }
 
-  const session = await getSession({ req });
-  if (!session?.user?.id) {
+  const token = await getToken({ req });
+  if (!token?.id) {
     return res.status(401).json({ message: "Unauthorized" });
   }
-  const userId = session.user.id;
+  const userId = token.id as string;
 
   try {
+    const interactionSchema = z.object({
+      contentNodeId: z.string().cuid(),
+      interactionType: z.nativeEnum(InteractionType),
+      data: z.record(z.string(), z.unknown()),
+    });
+
     const { contentNodeId, interactionType, data } = interactionSchema.parse(
       req.body
     );
