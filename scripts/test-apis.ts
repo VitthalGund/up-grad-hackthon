@@ -5,7 +5,7 @@ import { PrismaClient } from "@prisma/client";
 
 // --- Configuration ---
 const NEXTJS_BASE_URL = "http://localhost:3000/api";
-const prisma = new PrismaClient(); // Add prisma client for fetching real data
+const prisma = new PrismaClient();
 
 const TEST_USER = {
   name: "Api Test User",
@@ -14,9 +14,8 @@ const TEST_USER = {
   age: 25,
 };
 
-// Create an axios instance that automatically handles cookies
 const jar = new CookieJar();
-const client = wrapper(axios.create({ jar, withCredentials: true })); // Ensure credentials (cookies) are sent
+const client = wrapper(axios.create({ jar, withCredentials: true }));
 
 function logResult(testName: string, success: boolean, data?: any) {
   if (success) {
@@ -47,27 +46,34 @@ async function runApiTests() {
 
     // 3. User Login
     const loginRes = await client.post(
-      `${NEXTJS_BASE_URL}/auth/signin/credentials`,
+      // --- THIS IS THE CRITICAL FIX ---
+      `${NEXTJS_BASE_URL}/auth/callback/credentials`,
       new URLSearchParams({
         email: TEST_USER.email,
         password: TEST_USER.password,
         csrfToken: csrfToken,
         json: "true",
-      })
+      }),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      }
     );
     logResult("User Login", loginRes.status === 200 && loginRes.data.url);
 
-    // --- START OF FIX ---
-    // 4. NEW STEP: Explicitly verify the session is active
+    // 4. Verify Session
     const sessionRes = await client.get(`${NEXTJS_BASE_URL}/auth/session`);
+    console.log("--- Session API Response ---");
+    console.log(sessionRes.data);
+    console.log("--------------------------");
     logResult(
       "Verify Session",
       sessionRes.status === 200 &&
         sessionRes.data.user.email === TEST_USER.email
     );
-    // --- END OF FIX ---
 
-    // 5. Fetch Dashboard Data (now that session is confirmed)
+    // 5. Fetch Dashboard Data
     const dashboardRes = await client.get(`${NEXTJS_BASE_URL}/user/dashboard`);
     logResult(
       "Fetch Dashboard Data",
@@ -75,7 +81,7 @@ async function runApiTests() {
         dashboardRes.data.user.name === TEST_USER.name
     );
 
-    // 6. Fetch a REAL Content Node from the database
+    // 6. Fetch a REAL Content Node
     const firstNode = await prisma.contentNode.findFirst({
       where: { nodeType: "QUIZ" },
     });
@@ -109,7 +115,6 @@ async function runApiTests() {
     });
     logResult("Use a Hint", hintRes.status === 200 && hintRes.data.hint);
 
-    // ... The rest of the tests remain the same
     console.log("------------------------------------");
     console.log("🎉 All API tests passed successfully!");
   } catch (error: any) {
@@ -118,7 +123,7 @@ async function runApiTests() {
     if (error.response) {
       console.error("   └── Response:", error.response.data);
     } else {
-      console.error("   └── Error:", error.message);
+      console.error("   └── Error:", error);
     }
     process.exit(1);
   } finally {

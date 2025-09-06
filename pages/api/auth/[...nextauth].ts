@@ -1,11 +1,10 @@
-import NextAuth from "next-auth";
+import NextAuth, { User } from "next-auth";
+import { JWT } from "next-auth/jwt";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import prisma from "../../../lib/prisma";
 import bcrypt from "bcryptjs";
 
 export default NextAuth({
-  adapter: PrismaAdapter(prisma),
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -13,34 +12,43 @@ export default NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials): Promise<User | null> {
+        // Validate credentials
         if (!credentials?.email || !credentials?.password) {
-          return null;
+          throw new Error("Missing email or password");
         }
 
+        // Find user in the database
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
         });
 
         if (!user) {
-          return null;
+          throw new Error("No user found with this email");
         }
 
+        if (!user.hashedPassword) {
+          throw new Error("User has no password set");
+        }
+
+        // Validate password
         const isPasswordValid = await bcrypt.compare(
           credentials.password,
           user.hashedPassword
         );
 
         if (!isPasswordValid) {
-          return null;
+          throw new Error("Invalid password");
         }
 
-        // Return the user object if everything is valid
-        return {
+        // Log and return user object
+        const userData = {
           id: user.id,
-          name: user.name,
+          name: user.name ?? null, // Handle null name explicitly
           email: user.email,
         };
+        console.log("Authorized user:", userData);
+        return userData;
       },
     }),
   ],
@@ -51,21 +59,25 @@ export default NextAuth({
   pages: {
     signIn: "/login",
   },
-
-  // --- START OF FIX ---
-  // Add these callbacks to handle JWT and session data
   callbacks: {
     async jwt({ token, user }) {
-      // On sign-in, add the user's ID to the token
       if (user) {
         token.id = user.id;
+        token.name = user.name ?? null;
+        token.email = user.email ?? null;
       }
+      console.log("JWT token:", token);
       return token;
     },
     async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string;
+      if (token) {
+        session.user = {
+          id: token.id as string,
+          name: token.name ?? null,
+          email: token.email ?? null,
+        };
       }
+      console.log("Session:", session);
       return session;
     },
   },
