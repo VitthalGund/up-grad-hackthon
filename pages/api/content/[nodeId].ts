@@ -13,7 +13,7 @@ export default async function handler(
   }
 
   const session = await getSession({ req });
-  if (!session) {
+  if (!session?.user?.id) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
@@ -31,8 +31,6 @@ export default async function handler(
       return res.status(404).json({ message: "Content not found" });
     }
 
-    // --- START OF NEW LOGIC ---
-    // If the content is a video, fetch its streamable link from Google Drive
     if (
       contentNode.nodeType === NodeType.VIDEO &&
       contentNode.googleDriveFileId
@@ -41,15 +39,14 @@ export default async function handler(
 
       const fileMetadata = await drive.files.get({
         fileId: contentNode.googleDriveFileId,
-        fields: "webContentLink, webViewLink", // Request specific fields
+        fields: "webContentLink, webViewLink",
       });
 
-      // Combine the original node data with the new video links
       const responseData = {
         ...contentNode,
         videoLinks: {
-          download: fileMetadata.data.webContentLink, // This link streams/downloads the file
-          view: fileMetadata.data.webViewLink, // This link opens it in Google Drive viewer
+          download: fileMetadata.data.webContentLink,
+          view: fileMetadata.data.webViewLink,
         },
       };
 

@@ -1,11 +1,9 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import prisma from "../../../lib/prisma";
 import bcrypt from "bcryptjs";
 
 export default NextAuth({
-  adapter: PrismaAdapter(prisma),
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -14,28 +12,28 @@ export default NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
+        console.log({ credentials });
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
-
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
         });
-
         if (!user) {
           return null;
         }
-
         const isPasswordValid = await bcrypt.compare(
           credentials.password,
           user.hashedPassword
         );
-
         if (!isPasswordValid) {
           return null;
         }
-
-        // Return the user object if everything is valid
+        console.log({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        });
         return {
           id: user.id,
           name: user.name,
@@ -51,24 +49,26 @@ export default NextAuth({
   pages: {
     signIn: "/login",
   },
-
-  // --- START OF FIX ---
-  // Add these callbacks to handle JWT and session data
   callbacks: {
     async jwt({ token, user }) {
-      // On sign-in, add the user's ID to the token
       if (user) {
         token.id = user.id;
+        token.name = user.name;
+        token.email = user.email;
       }
+      console.log({ token });
       return token;
     },
     async session({ session, token }) {
-      // Add the user's ID to the session object
-      if (session.user) {
-        session.user.id = token.id as string;
+      if (token?.id) {
+        session.user = {
+          id: token.id as string,
+          name: token.name,
+          email: token.email,
+        };
       }
+      console.log({ session });
       return session;
     },
   },
-  // --- END OF FIX ---
 });
