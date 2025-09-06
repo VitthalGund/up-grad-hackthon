@@ -1,7 +1,14 @@
-import { PrismaClient } from "@prisma/client";
-import type { NextApiRequest, NextApiResponse } from "next";
+import { NextApiRequest, NextApiResponse } from "next";
+import { getSession } from "next-auth/react";
+import { z } from "zod";
+import prisma from "../../../lib/prisma";
+import { InteractionType } from "@prisma/client";
 
-const prisma = new PrismaClient();
+const interactionSchema = z.object({
+  contentNodeId: z.string().cuid(),
+  interactionType: z.nativeEnum(InteractionType),
+  data: z.record(z.unknown()),
+});
 
 export default async function handler(
   req: NextApiRequest,
@@ -11,12 +18,16 @@ export default async function handler(
     return res.status(405).json({ message: "Method Not Allowed" });
   }
 
-  try {
-    const { userId, contentNodeId, interactionType, data } = req.body;
+  const session = await getSession({ req });
+  if (!session?.user?.id) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  const userId = session.user.id;
 
-    if (!userId || !contentNodeId || !interactionType) {
-      return res.status(400).json({ message: "Missing required fields" });
-    }
+  try {
+    const { contentNodeId, interactionType, data } = interactionSchema.parse(
+      req.body
+    );
 
     const newInteraction = await prisma.userInteraction.create({
       data: {
@@ -29,6 +40,9 @@ export default async function handler(
 
     return res.status(201).json(newInteraction);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ errors: error.errors });
+    }
     console.error("Failed to create interaction:", error);
     return res.status(500).json({ message: "Internal Server Error" });
   }

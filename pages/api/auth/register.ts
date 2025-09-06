@@ -9,7 +9,6 @@ const signupSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
   age: z.number().int().positive("Age must be a positive number"),
 });
-// --- END OF CHANGE 1 ---
 
 export default async function handler(
   req: NextApiRequest,
