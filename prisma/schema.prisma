@@ -55,6 +55,7 @@ model ContentNode {
   nodeType           NodeType
   googleDriveFileId  String?
   contentJson        Json?
+  transcript         String?
   createdAt          DateTime  @default(now())
 
   // For the Knowledge Graph (self-referencing many-to-many)
