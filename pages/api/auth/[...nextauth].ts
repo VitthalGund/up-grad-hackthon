@@ -35,7 +35,12 @@ export default NextAuth({
           return null;
         }
 
-        return user;
+        // Return the user object if everything is valid
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        };
       },
     }),
   ],
@@ -46,4 +51,24 @@ export default NextAuth({
   pages: {
     signIn: "/login",
   },
+
+  // --- START OF FIX ---
+  // Add these callbacks to handle JWT and session data
+  callbacks: {
+    async jwt({ token, user }) {
+      // On sign-in, add the user's ID to the token
+      if (user) {
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      // Add the user's ID to the session object
+      if (session.user) {
+        session.user.id = token.id as string;
+      }
+      return session;
+    },
+  },
+  // --- END OF FIX ---
 });
