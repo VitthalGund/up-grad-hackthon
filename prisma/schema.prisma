@@ -1,0 +1,94 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ENUMS for controlled vocabularies
+enum SubscriptionTier {
+  FREE
+  PREMIUM
+}
+
+enum NodeType {
+  VIDEO
+  ARTICLE
+  QUIZ
+  INTERACTIVE
+}
+
+enum InteractionType {
+  CONTENT_VIEW
+  QUIZ_ATTEMPT
+  HINT_USED
+  CONFIDENCE_RATED
+}
+
+// MODELS (Tables in your database)
+
+model User {
+  id               String            @id @default(cuid())
+  email            String            @unique
+  name             String?
+  hashedPassword   String
+  subscriptionTier SubscriptionTier  @default(FREE)
+  hintCredits      Int               @default(5)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  interactions UserInteraction[]
+  reports      LearnerReport[]
+  profile      LearnerProfile?
+}
+
+model ContentNode {
+  id          String   @id @default(cuid())
+  title       String
+  nodeType    NodeType
+  contentJson Json // Flexible field for video URL, article text, quiz questions
+  createdAt   DateTime @default(now())
+
+  // For the Knowledge Graph (self-referencing many-to-many)
+  prerequisites ContentNode[] @relation("KnowledgeGraph")
+  unlocks       ContentNode[] @relation("KnowledgeGraph")
+
+  interactions UserInteraction[]
+}
+
+model UserInteraction {
+  id            String          @id @default(cuid())
+  userId        String
+  contentNodeId String
+  interactionType InteractionType
+  data          Json // Store quiz answers, time taken, confidence rating etc.
+  createdAt     DateTime        @default(now())
+
+  user        User        @relation(fields: [userId], references: [id])
+  contentNode ContentNode @relation(fields: [contentNodeId], references: [id])
+}
+
+model LearnerProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  engagementScore   Float    @default(0.5)
+  competenceMap     Json // e.g., {"concept_101": 0.92, "concept_102": 0.45}
+  misconceptionClusters Json   @default("[]")
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model LearnerReport {
+  id          String   @id @default(cuid())
+  userId      String
+  generatedAt DateTime @default(now())
+  reportData  Json // Snapshot of profile, benchmarks, recommendations
+
+  user User @relation(fields: [userId], references: [id])
+}
