@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getSession } from "next-auth/react";
 import { z } from "zod";
-import prisma from "../../../lib/prisma";
+import Redis from "ioredis";
 import { InteractionType } from "@prisma/client";
 
 const interactionSchema = z.object({
@@ -9,6 +9,9 @@ const interactionSchema = z.object({
   interactionType: z.nativeEnum(InteractionType),
   data: z.record(z.unknown()),
 });
+
+const redis = new Redis(process.env.REDIS_URL!);
+const INTERACTION_QUEUE_KEY = "interaction-queue";
 
 export default async function handler(
   req: NextApiRequest,
@@ -29,21 +32,24 @@ export default async function handler(
       req.body
     );
 
-    const newInteraction = await prisma.userInteraction.create({
-      data: {
-        userId,
-        contentNodeId,
-        interactionType,
-        data,
-      },
-    });
+    const eventPayload = {
+      userId,
+      contentNodeId,
+      interactionType,
+      data,
+      timestamp: new Date().toISOString(),
+    };
 
-    return res.status(201).json(newInteraction);
+    await redis.lpush(INTERACTION_QUEUE_KEY, JSON.stringify(eventPayload));
+
+    return res
+      .status(202)
+      .json({ message: "Interaction accepted for processing." });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ errors: error.errors });
     }
-    console.error("Failed to create interaction:", error);
+    console.error("Failed to queue interaction:", error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 }
